@@ -1,0 +1,26 @@
+{
+  "name": "DiscordTalker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "dependencies": {
+    "eris": "^0.8.1",
+    "voice-text": "^0.1.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pekko1215/DiscordTalker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pekko1215/DiscordTalker/issues"
+  },
+  "homepage": "https://github.com/pekko1215/DiscordTalker#readme"
+}
