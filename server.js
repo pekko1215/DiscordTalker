@@ -2,18 +2,21 @@ const Eris = require("eris");
 const { VoiceText } = require('voice-text');
 const { writeFileSync } = require('fs');
 const Tokens = require('./tokens.js');
+const fs = require('fs');
+const streamifier = require('streamifier');
 
 const voiceText = new VoiceText(Tokens.voiceText);
 const bot = new Eris(Tokens.discord);
-// console.log(Tokens)
+
 var connection = null;
 var textBuffer = [];
-const ChannelName = 'text_to_voice'
+const ChannelName = 'texttovoice'
 var userVoice = {};
 const VoiceTable = ['hikari', 'haruka', 'takeru', 'santa', 'bear', 'show']
+var options = require('./options')
 
 bot.on("ready", () => { // When the bot is ready
-    bot.guilds.forEach((guild) => {
+    bot.guilds.forEach(guild => {
         var flag = true;
         guild.channels.forEach((channel) => {
             if (channel.name === ChannelName) {
@@ -27,6 +30,12 @@ bot.on("ready", () => { // When the bot is ready
             guild.createChannel(ChannelName, 0, '', parent.id);
         }
     })
+    if (options.currentChannel) {
+        bot.leaveVoiceChannel(options.currentChannel);
+        setTimeout(()=>{
+            joinVoiceChannelById(options.currentChannel)
+        },3000)
+    }
     console.log("Ready!"); // Log "Ready!"
 });
 
@@ -40,21 +49,7 @@ bot.on("messageCreate", (msg) => { // When a message is created
         commands.push({
             alias: 'join',
             fn: (name) => {
-                var channel = msg.channel.guild.channels.find((channel) => {
-                    return channel.name === name && channel.type === 2
-                })
-                if (!channel) {
-                    return false;
-                }
-                bot.joinVoiceChannel(channel.id).then((con) => {
-                    connection = con;
-                    connection.on('end', () => {
-                        if (textBuffer.length) {
-                            connection.play(getYomiageStream(textBuffer.shift()))
-                        }
-                    })
-                });
-                return true
+                return joinVoiceChannelByName(name);
             }
         })
         commands.push({
@@ -63,6 +58,8 @@ bot.on("messageCreate", (msg) => { // When a message is created
                 if (connection) {
                     bot.leaveVoiceChannel(connection.id)
                     textBuffer = []
+                    options.currentChannel = null;
+                    updateOptionFile();
                     return true;
                 }
                 return false;
@@ -76,20 +73,20 @@ bot.on("messageCreate", (msg) => { // When a message is created
                 return true;
             }
         })
-        var command;
+        arr.shift();
         if (!arr.some((word, i) => {
                 var com = commands.find((command) => {
                     return word === command.alias
                 })
                 if (!com) {
+                    msg.addReaction('😥');
                     return
                 }
-                if (!com.fn(...arr.splice(i + 1)))
+                if (!com.fn(...arr.splice(i + 1))) {
                     msg.addReaction('😥');
+                }
                 return true;
-            })) {
-            msg.addReaction('😥')
-        } else {
+            })) {} else {
             return
         }
     }
@@ -103,11 +100,13 @@ bot.on("messageCreate", (msg) => { // When a message is created
         })
     } else {
         var voice = getVoiceByUser(msg.author.id)
-        var stream = getYomiageStream({
+        var error = getYomiageStream({
             voice: voice,
             msg: msg.content
         })
-        connection.play(stream)
+        if(error){
+            msg.addReaction('😥');
+        }
     }
 })
 
@@ -121,8 +120,56 @@ function getVoiceByUser(id) {
 }
 
 function getYomiageStream(obj) {
-    return voiceText.stream(obj.msg, {
+    var ranges = [
+        '\ud83c[\udf00-\udfff]',
+        '\ud83d[\udc00-\ude4f]',
+        '\ud83d[\ude80-\udeff]',
+        '\ud7c9[\ude00-\udeff]',
+        '[\u2600-\u27BF]'
+    ];
+    var ex = new RegExp(ranges.join('|'), 'g');
+    obj.msg = obj.msg.replace(ex, ''); //ここで削除
+
+    if(!obj.msg){return true}
+    var url = voiceText.fetchBuffer(obj.msg,{
         speaker: obj.voice
+    }).then(buffer=>{
+        try {
+            JSON.parse(buffer.toString('utf-8'));
+        }catch(e){
+            var stream = require('buffer-to-stream')(buffer);
+            connection.play(stream);
+        }
     })
+
 }
+
+function joinVoiceChannelByName(name) {
+    for (var guild of bot.guilds.values()) {
+        for (var channel of guild.channels.values()) {
+            if (channel.name != name || channel.type != 2) { continue; }
+            return joinVoiceChannelById(channel.id)
+        }
+    }
+}
+
+function joinVoiceChannelById(id) {
+    bot.joinVoiceChannel(id)
+        .then((con) => {
+            connection = con;
+            options.currentChannel = id;
+            updateOptionFile();
+            connection.on('end', () => {
+                if (textBuffer.length) {
+                    connection.play(getYomiageStream(textBuffer.shift()))
+                }
+            })
+        });
+    return true;
+}
+
+function updateOptionFile() {
+    fs.writeFile('./options.json', JSON.stringify(options, null, 4), 'utf8', () => {});
+}
+
 bot.connect(); // Get the bot to connect to Discord
