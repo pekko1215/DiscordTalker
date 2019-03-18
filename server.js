@@ -13,8 +13,11 @@ var textBuffer = [];
 const ChannelName = 'texttovoice'
 var userVoice = {};
 const VoiceTable = ['hikari', 'haruka', 'takeru', 'santa', 'bear', 'show']
-var options = require('./options')
 
+var options = {};
+try {
+    options = require('./options')
+}catch(e){};
 bot.on("ready", () => { // When the bot is ready
     bot.guilds.forEach(guild => {
         var flag = true;
